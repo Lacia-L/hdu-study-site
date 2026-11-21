@@ -91,7 +91,33 @@
   }
 
   /* KaTeX 渲染 */
+  /* KaTeX 按需加载：首屏不加载 20 个字体文件，只有渲染公式时才拉取 */
+  let katexPromise = null;
+  function ensureKatex() {
+    if (katexPromise) return katexPromise;
+    katexPromise = new Promise(resolve => {
+      const css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = 'assets/katex/katex.min.css?v=28';
+      document.head.appendChild(css);
+      const js = document.createElement('script');
+      js.src = 'assets/katex/katex.min.js?v=28';
+      js.onload = () => {
+        const ar = document.createElement('script');
+        ar.src = 'assets/katex/contrib/auto-render.min.js?v=28';
+        ar.onload = () => resolve(true);
+        ar.onerror = () => resolve(false);
+        document.head.appendChild(ar);
+      };
+      js.onerror = () => resolve(false);
+      document.head.appendChild(js);
+    });
+    return katexPromise;
+  }
+  window.ensureKatex = ensureKatex;
+
   function refreshMath() {
+    if (!window.renderMathInElement && !window.katex) { ensureKatex().then(() => refreshMath()); return; }
     if (window.renderMathInElement) {
       try {
         renderMathInElement(document.body, {
