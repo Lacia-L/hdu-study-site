@@ -771,3 +771,22 @@
 
 /* 直接就绪：无开场动画 */
 document.body.classList.add("ready");
+
+/* ============ 启动加载层收尾 ============ */
+(function(){
+  const boot = document.getElementById('boot');
+  if (!boot) return;
+  const tip = document.getElementById('bootTip');
+  const slow = setTimeout(() => {
+    if (tip) tip.textContent = '网络较慢，仍在下载课程数据，请不要关闭页面…';
+  }, 6000);
+  const hide = () => {
+    clearTimeout(slow);
+    boot.classList.add('done');
+    setTimeout(() => { boot.style.display = 'none'; }, 400);
+  };
+  if (document.readyState === 'complete') setTimeout(hide, 60);
+  else window.addEventListener('load', () => setTimeout(hide, 60));
+  // 兜底：即使个别资源失败也不让遮罩卡住
+  setTimeout(hide, 25000);
+})();
