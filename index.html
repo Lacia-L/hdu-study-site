@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="description" content="杭电学习站：选学院·班级查看培养计划，课程学习复习、分章习题练习、错题集，支持导入自己教务系统的培养计划。">
-  <title>杭电学习站 · 学院班级版</title>
-  <link rel="stylesheet" href="assets/css/style.css?v=28">
+  <meta name="description" content="杭电学习站：全校 2025 级本科教学计划，按学院·专业查看培养计划，课程学习复习、分章习题练习、错题集，支持导入自己教务系统的培养计划。">
+  <title>杭电学习站 · 全校课程库</title>
+  <link rel="stylesheet" href="assets/css/style.css?v=36">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='9' fill='%232563EB'/%3E%3Cpath d='M9 11h14M9 16h14M9 21h9' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -50,6 +50,20 @@
   </header>
 
   <main>
+    <div class="gamebar" id="gamebar">
+      <div class="lv">
+        <div class="ring2" id="gbRing" style="--p:0"><span id="gbLevel">1</span></div>
+        <div>
+          <div class="name" id="gbName">Lv.1 · 新手上路</div>
+          <div class="xpbar"><i id="gbXpFill" style="width:0%"></i></div>
+        </div>
+      </div>
+      <span class="chip" id="gbXpText" style="margin-left:8px">0 XP</span>
+      <span class="streakchip" id="gbStreak">🔥 连续 0 天</span>
+      <span class="spacer"></span>
+      <button class="checkin-btn" id="gbCheckin" type="button">📅 每日打卡</button>
+    </div>
+
     <!-- ===== 首页：课程库 ===== -->
     <div id="home" class="view">
       <section class="hero">
@@ -70,6 +84,21 @@
         </aside>
       </section>
 
+      <div class="play-grid">
+        <div class="play-tile p1" data-nav="home"><span class="em">📚</span><div><div class="t">课程库</div><div class="s">全校内建课程</div></div></div>
+        <div class="play-tile p2" data-nav="plan"><span class="em">🗺️</span><div><div class="t">培养计划</div><div class="s">选学院·专业·年级</div></div></div>
+        <div class="play-tile p3" data-nav="my"><span class="em">🎒</span><div><div class="t">我的课程</div><div class="s">勾选本学期在学</div></div></div>
+        <div class="play-tile p4" data-nav="wrong"><span class="em">✏️</span><div><div class="t">错题集</div><div class="s">同类题再练</div></div></div>
+      </div>
+
+      <div class="lib-toolbar" id="libToolbar">
+        <select id="collegeSel2" class="select select-sm" aria-label="按学院筛选"></select>
+        <div class="scope-toggle" id="scopeToggle" role="group" aria-label="内容范围">
+          <button class="scope-btn active" data-scope="all" type="button">全部课程</button>
+          <button class="scope-btn" data-scope="built" type="button">已建库</button>
+        </div>
+        <span class="lib-count" id="libCount"></span>
+      </div>
       <div class="cat-pills" id="catPills" role="tablist" aria-label="课程分类筛选"></div>
 
       <div class="myclass-card" id="myClassCard" hidden></div>
@@ -81,13 +110,13 @@
     <!-- ===== 培养计划视图 ===== -->
     <div id="viewPlan" class="view" hidden>
       <section class="plan-head">
-        <h2>选你的学院、专业和年级</h2>
-        <p class="plan-tip">全校 16 个学院 · 45 个专业 · 2024/2025/2026 级均可查询。站内已建库的课可以直接进入「学习 · 复习 · 练习」，没建库的也会保留在清单里，方便对照教材复习。</p>
+        <h2>选你的学院和专业</h2>
+        <p class="plan-tip">数据来源：杭电 2025 级全校本科教学计划总表 · 17 个学院 · 83 个专业 · 2354 门去重课程。按学年·学期列出每个专业的完整课表，已建库的课可直接进入「学习 · 复习 · 练习」，未建库的点开可查其真实课程信息。</p>
         <div class="plan-selects">
           <select id="collegeSel" class="select" aria-label="选择学院"></select>
           <select id="majorSel" class="select" aria-label="选择专业" disabled></select>
           <select id="gradeSel" class="select" aria-label="选择年级" disabled></select>
-          <button id="saveMyClass" class="btn-primary" type="button">设为我的班级</button>
+          <button id="saveMyClass" class="btn-primary" type="button">设为我的专业</button>
         </div>
         <p class="plan-src" id="planSrc"></p>
       </section>
@@ -146,8 +175,10 @@
 
   <button id="backTop" class="backtop" type="button" title="回到顶部" aria-label="回到顶部">↑</button>
 
-  <script src="data/courses.js?v=28" defer></script>
-  <script src="data/programs.js?v=28" defer></script>
-  <script src="assets/js/main.js?v=28" defer></script>
+  <script src="data/courses.js?v=36" defer></script>
+  <script src="data/programs.js?v=36" defer></script>
+  <script src="data/catalog.js?v=36" defer></script>
+  <script src="data/programs2.js?v=36" defer></script>
+  <script src="assets/js/main.js?v=36" defer></script>
 </body>
 </html>

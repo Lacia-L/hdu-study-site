@@ -47,7 +47,7 @@
     myclass: store.get(K.cls, null),        // {collegeId, majorId}
     mine: store.get(K.mine, []),            // [{name, courseId|null}]
     wrong: store.get(K.wrong, {}),          // {courseId: [q,...]}
-    cat: '全部', search: ''
+    cat: '全部', search: '', college: '全部', scope: 'all'
   };
   const saveMine = () => store.set(K.mine, state.mine);
   const saveWrong = () => { store.set(K.wrong, state.wrong); updateWrongCount(); };
@@ -66,6 +66,60 @@
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
     store.set(K.theme, state.theme); applyTheme();
   });
+
+  /* ---------- 游戏层：XP / 等级 / 连续打卡 ---------- */
+  const GK = 'hdu_game';
+  const LEVELS = [0, 120, 300, 560, 900, 1350, 1950, 2700, 3600, 4700, 6000, 8000];
+  const TITLES = ['新手上路', '勤学小将', '学习达人', '进阶学霸', '卷王本王', '学神'];
+  const todayStr = () => new Date().toLocaleDateString('sv'); // YYYY-MM-DD
+  let game = store.get(GK, null) || { xp: 0, streak: 0, lastCheck: '', checks: [] };
+  function levelOf(xp) { let l = 1; for (let i = 0; i < LEVELS.length; i++) if (xp >= LEVELS[i]) l = i + 1; return l; }
+  function titleOf(l) { return TITLES[Math.min(TITLES.length - 1, Math.floor((l - 1) / 2))]; }
+  function saveGame() { store.set(GK, game); }
+  function addXp(n) { if (!n) return; game.xp += n; saveGame(); renderGame(); }
+  function toast(msg) {
+    let t = document.getElementById('hduToast');
+    if (!t) {
+      t = document.createElement('div'); t.id = 'hduToast';
+      t.style.cssText = 'position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:300;background:#111827;color:#fff;padding:11px 18px;border-radius:14px;font-size:13px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.28);opacity:0;transition:opacity .25s,transform .25s;max-width:88vw;text-align:center;pointer-events:none';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(-6px)'; });
+    clearTimeout(t._h); t._h = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%)'; }, 1900);
+  }
+  function renderGame() {
+    const R = $('#gbRing'); if (!R) return;
+    const l = levelOf(game.xp), cur = LEVELS[l - 1] || 0, next = LEVELS[l] || cur + 1;
+    const pct = Math.max(0, Math.min(100, Math.round((game.xp - cur) / (next - cur) * 100)));
+    R.style.setProperty('--p', pct);
+    const set = (sel, v) => { const e = $(sel); if (e) e.textContent = v; };
+    set('#gbLevel', l); set('#gbName', `Lv.${l} · ${titleOf(l)}`); set('#gbXpText', `${game.xp} XP`);
+    set('#gbStreak', `🔥 连续 ${game.streak} 天`);
+    const fill = $('#gbXpFill'); if (fill) fill.style.width = pct + '%';
+    const btn = $('#gbCheckin');
+    if (btn) {
+      const done = game.lastCheck === todayStr();
+      btn.classList.toggle('done', done); btn.disabled = done;
+      btn.textContent = done ? '✅ 今日已打卡' : '📅 每日打卡';
+    }
+  }
+  function doCheckin() {
+    if (game.lastCheck === todayStr()) return;
+    const y = new Date(Date.now() - 864e5).toLocaleDateString('sv');
+    game.streak = (game.lastCheck === y) ? game.streak + 1 : 1;
+    game.lastCheck = todayStr();
+    if (!Array.isArray(game.checks)) game.checks = [];
+    game.checks.push(game.lastCheck);
+    saveGame(); addXp(20); renderGame();
+    toast(`🎉 打卡成功，连续 ${game.streak} 天！+20 XP`);
+  }
+  (function wireGame() {
+    const btn = $('#gbCheckin');
+    if (btn) btn.addEventListener('click', doCheckin);
+    renderGame();
+  })();
+  window.Game = { addXp, renderGame };
 
   /* ---------- 视图切换 ---------- */
   const VIEWS = ['home', 'viewPlan', 'viewMy', 'viewWrong', 'viewCourse'];
@@ -90,6 +144,16 @@
     return String(t || '').replace(/[\u4e00-\u9fa5]+/g, m => '\\text{' + m + '}');
   }
 
+  /* 公式卡片：兼容两种写法——
+     1) 纯 LaTeX（老课程约定）：外层用 $$ 包裹，中文自动转 \\text{}；
+     2) 已自带 \\(..\\) / \\[..\\] / $$ 分隔符（部分新课程把公式+行内说明一起写）：
+        原样输出，交给 refreshMath 的 auto-render 按分隔符解析，避免 \\( 混进 $$ 造成 KaTeX 报错。 */
+  function formulaMathHTML(t) {
+    const s = String(t || '');
+    if (/\\\(|\\\[|\$\$/.test(s)) return esc(s);
+    return '$$' + esc(katexMath(s)) + '$$';
+  }
+
   /* KaTeX 渲染 */
   /* KaTeX 按需加载：首屏不加载 20 个字体文件，只有渲染公式时才拉取 */
   let katexPromise = null;
@@ -98,13 +162,13 @@
     katexPromise = new Promise(resolve => {
       const css = document.createElement('link');
       css.rel = 'stylesheet';
-      css.href = 'assets/katex/katex.min.css?v=28';
+      css.href = 'assets/katex/katex.min.css?v=31';
       document.head.appendChild(css);
       const js = document.createElement('script');
-      js.src = 'assets/katex/katex.min.js?v=28';
+      js.src = 'assets/katex/katex.min.js?v=31';
       js.onload = () => {
         const ar = document.createElement('script');
-        ar.src = 'assets/katex/contrib/auto-render.min.js?v=28';
+        ar.src = 'assets/katex/contrib/auto-render.min.js?v=31';
         ar.onload = () => resolve(true);
         ar.onerror = () => resolve(false);
         document.head.appendChild(ar);
@@ -132,58 +196,131 @@
     }
   }
 
-  /* ================= 首页：课程库 ================= */
-  const CATS = ['全部', ...Object.keys(window.COURSES.reduce((m, c) => (m[c.category] = 1, m), {}))];
+  /* ================= 首页：课程库（全校总目录） ================= */
+  const CAT = window.CATALOG || [];
+  const CAT_ORDER = ['通识公共课','学科基础课','专业课','实践环节','课外实践','通识选修'];
+  const present = new Set(CAT.map(e => e.category));
+  const CAT_CATS = ['全部', ...CAT_ORDER.filter(c => present.has(c)), ...[...present].filter(c => !CAT_ORDER.includes(c))];
+  function catById(uid) { return CAT.find(e => e.uid === uid); }
+  function catByName(nm) { const k = normName(nm); return CAT.find(e => normName(e.name) === k); }
   function renderPills() {
-    $('#catPills').innerHTML = CATS.map(c =>
+    $('#catPills').innerHTML = CAT_CATS.map(c =>
       `<button class="pill ${c === state.cat ? 'active' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
     $$('#catPills .pill').forEach(b => b.addEventListener('click', () => { state.cat = b.dataset.cat; renderPills(); renderGrid(); }));
   }
+  function renderCollegeFilter() {
+    const sel = $('#collegeSel2'); if (!sel) return;
+    const cols = [...new Set(CAT.flatMap(e => e.colleges))].sort();
+    sel.innerHTML = `<option value="全部">全部学院（${cols.length}）</option>` +
+      cols.map(c => `<option value="${esc(c)}" ${c === state.college ? 'selected' : ''}>${esc(c)}</option>`).join('');
+    sel.onchange = () => { state.college = sel.value; renderGrid(); };
+  }
+  function renderScopeToggle() {
+    $$('#scopeToggle .scope-btn').forEach(b => b.addEventListener('click', () => {
+      state.scope = b.dataset.scope;
+      $$('#scopeToggle .scope-btn').forEach(x => x.classList.toggle('active', x === b));
+      renderGrid();
+    }));
+  }
+  function catMatch(e, kw) {
+    if (state.cat !== '全部' && e.category !== state.cat) return false;
+    if (state.college && state.college !== '全部' && !e.colleges.includes(state.college)) return false;
+    if (state.scope === 'built' && !e.hasContent) return false;
+    if (!kw) return true;
+    return e.name.toLowerCase().includes(kw) || e.majors.some(m => m.toLowerCase().includes(kw));
+  }
   function renderGrid() {
     const kw = state.search.trim().toLowerCase();
-    const list = window.COURSES.filter(c => {
-      if (state.cat !== '全部' && c.category !== state.cat) return false;
-      if (!kw) return true;
-      const hay = [c.name, c.desc, (c.chapters || []).map(s => (s.knowledgePoints || []).join(' ')).join(' ')].join(' ').toLowerCase();
-      return hay.includes(kw);
-    });
+    const list = CAT.filter(e => catMatch(e, kw));
     $('#searchEmpty').hidden = list.length > 0;
-    $('#courseGrid').innerHTML = list.map(c => {
-      const qs = (c.chapters || []).reduce((a, s) => a + (s.questions || []).length, 0);
-      const chs = (c.chapters || []).length;
-      return `<div class="course-card" data-id="${esc(c.id)}">
-        <div class="cc-top"><span class="cc-emoji">${esc((c.name || '课').trim().slice(0, 1))}</span>
-          <span class="cc-name">${esc(c.name)}</span>
-          <span class="cc-cat">${esc(c.category)}</span></div>
-        <div class="cc-desc"><span>${esc(c.desc)}</span></div>
-        <div class="cc-meta"><span>${chs} 章</span><span>${qs} 题</span><span class="go">学习 · 练习 →</span></div>
-      </div>`;
+    const builtN = list.filter(e => e.hasContent).length;
+    const lc = $('#libCount'); if (lc) lc.textContent = `共 ${list.length} 门 · 已建库 ${builtN} 门`;
+    $('#courseGrid').innerHTML = list.map(e => {
+      if (e.hasContent) {
+        const c = window.COURSES.find(x => x.id === e.courseId) || {};
+        const qs = (c.chapters || []).reduce((a, s) => a + (s.questions || []).length, 0);
+        const chs = (c.chapters || []).length;
+        return `<div class="course-card is-built" data-uid="${esc(e.uid)}">
+          <div class="cc-top"><span class="cc-emoji">${esc((e.name || '课').trim().slice(0, 1))}</span>
+            <span class="cc-name">${esc(e.name)}</span>
+            <span class="cc-cat">${esc(e.category)}</span></div>
+          <div class="cc-desc"><span>${esc(c.desc || '')}</span></div>
+          <div class="cc-meta"><span class="tag ok">✓ 已建库</span><span>${chs} 章 · ${qs} 题</span><span class="go">学习 · 练习 →</span></div>
+        </div>`;
+      }
+      const pub = e.majorCount >= 30 ? '全校通用' : (e.majorCount >= 8 ? `${e.majorCount} 个专业` : '专业专属');
+      const cr = e.credit ? `<span>${esc(e.credit)} 学分</span>` : '';
+      return `<div class="course-card is-todo" data-uid="${esc(e.uid)}">
+        <div class="cc-top"><span class="cc-emoji cc-emoji-soft">${esc((e.name || '课').trim().slice(0, 1))}</span>
+          <span class="cc-name">${esc(e.name)}</span>
+          <span class="cc-cat">${esc(e.category)}</span></div>
+      <div class="cc-desc"><span>${esc(e.nature || '')}${e.nature ? ' · ' : ''}${esc(e.colleges.slice(0, 3).join('、'))}${e.colleges.length > 3 ? ' 等' + e.colleges.length + ' 个学院' : ''}</span></div>
+          <div class="cc-meta"><span class="tag plain">${esc(pub)}</span>${cr}<span>内容建设中</span><span class="go">查看目录 →</span></div>
+        </div>`;
     }).join('');
     $$('#courseGrid .course-card').forEach(card =>
-      card.addEventListener('click', () => openCourse(card.dataset.id)));
+      card.addEventListener('click', () => openCatalogEntry(card.dataset.uid)));
   }
   $('#searchInput').addEventListener('input', (e) => { state.search = e.target.value; renderGrid(); });
 
+  /* 目录详情：只呈现真实来源信息，不编造内容 */
+  function openCatalogEntry(uid) {
+    const e = catById(uid); if (!e) return;
+    if (e.hasContent) { openCourse(e.courseId); return; }
+    const v = $('#viewCourse');
+    const majors = e.majors.map(m => m.split('/').pop());
+    v.innerHTML = `
+      <div class="crumb"><a data-nav="home2">课程库</a> / ${esc(e.category)}</div>
+      <div class="course-head">
+        <div class="ch-top">
+          <span class="ch-emoji" style="background:linear-gradient(135deg,#94A3B8,#64748B)">${esc((e.name || '课').trim().slice(0, 1))}</span>
+          <div style="flex:1">
+            <h2 class="ch-name">${esc(e.name)} <span class="ch-cat">${esc(e.category)}</span></h2>
+            <div class="ch-meta"><span>覆盖 ${e.collegeCount} 个学院 · ${e.majorCount} 个专业</span>
+              ${e.credit ? `<span>${esc(e.credit)} 学分</span>` : ''}
+              <span>${e.majorCount >= 30 ? '全校通用课' : e.majorCount >= 8 ? '学科平台课' : '专业专属课'}</span></div>
+          </div>
+        </div>
+        <div class="advice-card"><b>🚧 本课内容建设中。</b> 该课程来自杭电 2025 级本科教学计划总表，已收录进全校课程总目录；
+          知识点讲解与配套习题正在按优先级（全校通用 → 学科平台 → 专业必修/选择性必修）逐门补充，补完并通过校对后开放学习。
+          以下开课学院/专业、学分、课程性质等信息均取自教学计划总表的真实数据。</div>
+        <div class="sec-label">开设本专业（${e.majors.length}）</div>
+        <div class="kp-list">${majors.map(m => `<span class="kp">${esc(m)}</span>`).join('')}</div>
+        <div class="sec-label">所属学院（${e.colleges.length}）</div>
+        <div class="kp-list">${e.colleges.map(m => `<span class="kp">${esc(m)}</span>`).join('')}</div>
+      </div>`;
+    $('.crumb [data-nav]', v).addEventListener('click', (ev) => { ev.preventDefault(); show('home'); });
+    show('viewCourse', false);
+  }
+
+
   /* 首页「我的班级」快捷卡 */
+  const P2 = window.PROGRAMS2 || { colleges: [], electives: [] };
+  const P2BASE = parseInt((P2.grade || '2025')) || 2025;
+  function p2college(name) { return P2.colleges.find(c => c.name === name); }
+  function p2major(name, cname) { const c = p2college(cname); return c && c.majors.find(m => m.name === name); }
+  function cnNo(i) { return ['一','二','三','四','五','六'][i - 1] || i; }
+  function termSection(c) {
+    const yi = parseInt(c.year);
+    if (!yi) return { ln: 99, tn: 99, key: 'x-x', label: '开课学期待核对' };
+    const ln = Math.max(1, yi - P2BASE + 1);
+    const tn = parseInt(c.term) || 1;
+    return { ln, tn, key: ln + '-' + tn, label: `第${cnNo(ln)}学年 · 第${tn}学期` };
+  }
   function renderMyClassCard() {
     const box = $('#myClassCard');
     const mc = state.myclass;
-    if (!mc) { box.hidden = true; return; }
-    const col = window.PROGRAMS.colleges.find(c => c.id === mc.collegeId);
-    const mj = col && col.majors.find(m => m.id === mc.majorId);
+    if (!mc || !mc.college) { box.hidden = true; return; }
+    const col = p2college(mc.college); const mj = col && col.majors.find(m => m.name === mc.major);
     if (!col || !mj) { box.hidden = true; return; }
-    let libCount = 0, total = 0;
-    if (mj.id === 'zy-jg') {
-      window.COURSES.filter(c => c.category !== '通用参考').forEach(c => { total++; libCount++; });
-    } else {
-      Object.values(mj.groups || {}).forEach(arr => arr.forEach(nm => { total++; if (findCourse(nm)) libCount++; }));
-    }
+    let total = 0, libCount = 0;
+    mj.courses.forEach(cs => { total++; if (findCourse(cs.name)) libCount++; });
     box.hidden = false;
-    box.innerHTML = `<div><div class="t">我的班级：${esc(col.name)} · ${esc(mj.name)}${mc.grade ? ' · ' + esc(mc.grade) : ''}</div>
-      <div class="d">培养计划共 ${total} 门课，其中 ${libCount} 门已建学习库（知识点讲解+习题）</div></div>
+    box.innerHTML = `<div><div class="t">我的专业：${esc(col.name)} · ${esc(mj.name)}</div>
+      <div class="d">培养计划共 ${new Set(mj.courses.map(x=>x.name)).size} 门课（${total} 条排课），其中 ${libCount} 门已建学习库</div></div>
       <div class="ops">
         <button class="btn-primary" data-go="plan">查看我的培养计划</button>
-        <button class="btn-ghost" data-clear="1">更换班级</button>
+        <button class="btn-ghost" data-clear="1">更换专业</button>
       </div>`;
     $('[data-go]', box).addEventListener('click', () => show('viewPlan'));
     $('[data-clear]', box).addEventListener('click', () => { state.myclass = null; store.del(K.cls); renderMyClassCard(); renderBadge(); });
@@ -191,116 +328,97 @@
   }
   function renderBadge() {
     const b = $('#myBadge'), mc = state.myclass;
-    if (!mc) { b.hidden = true; return; }
-    const col = window.PROGRAMS.colleges.find(c => c.id === mc.collegeId);
-    const mj = col && col.majors.find(m => m.id === mc.majorId);
-    if (col && mj) { b.hidden = false; b.textContent = mj.name; } else b.hidden = true;
+    if (!mc || !mc.major) { b.hidden = true; return; }
+    b.hidden = false; b.textContent = mc.major;
   }
 
-  /* ================= 培养计划 ================= */
+  /* ================= 培养计划（2025 级全校教学计划） ================= */
   function renderPlanSelectors() {
-    const sel = $('#collegeSel'), msel = $('#majorSel');
-    sel.innerHTML = window.PROGRAMS.colleges.map(c =>
-      `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join('');
-    if (state.myclass) sel.value = state.myclass.collegeId;
-    fillMajors(sel.value, state.myclass && state.myclass.majorId, state.myclass && state.myclass.grade);
+    const sel = $('#collegeSel'); if (!sel) return;
+    sel.innerHTML = P2.colleges.map(c =>
+      `<option value="${esc(c.name)}">${esc(c.name)}（${c.majors.length}）</option>`).join('');
+    if (state.myclass && state.myclass.college) sel.value = state.myclass.college;
+    fillMajors(sel.value, state.myclass && state.myclass.major);
     sel.onchange = () => fillMajors(sel.value, null);
-  }
-  function fillMajors(collegeId, pickId, pickGrade) {
-    const msel = $('#majorSel');
-    const col = window.PROGRAMS.colleges.find(c => c.id === collegeId);
-    msel.disabled = false;
-    msel.innerHTML = col.majors.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
-    if (pickId) msel.value = pickId;
-    fillGrades(collegeId, msel.value, pickGrade);
-    msel.onchange = () => fillGrades(collegeId, msel.value, null);
-  }
-  function fillGrades(collegeId, majorId, pickGrade) {
     const gsel = $('#gradeSel');
-    const col = window.PROGRAMS.colleges.find(c => c.id === collegeId);
-    const mj = col.majors.find(m => m.id === majorId);
-    const grades = mj.grades || [mj.grade];
-    gsel.disabled = grades.length <= 1;
-    gsel.innerHTML = grades.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
-    if (pickGrade && grades.includes(pickGrade)) gsel.value = pickGrade;
-    renderPlanBody(collegeId, majorId, gsel.value);
-    gsel.onchange = () => renderPlanBody(collegeId, majorId, gsel.value);
+    if (gsel) { gsel.innerHTML = `<option>${esc(P2.grade || '2025')}级</option>`; gsel.disabled = true; }
   }
-  function planCourseList(mj) {
-    if (mj.id === 'zy-jg') {
-      return [{ name: '__ALL_ZY__', groups: { '在修课程（学习通建库）': window.COURSES.filter(c => c.category !== '通用参考').map(c => c.name) } }];
-    }
-    return [mj];
+  function fillMajors(collegeName, pickMajor) {
+    const msel = $('#majorSel'); if (!msel) return;
+    const col = p2college(collegeName); if (!col) return;
+    msel.disabled = false;
+    msel.innerHTML = col.majors.map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
+    if (pickMajor && col.majors.some(m => m.name === pickMajor)) msel.value = pickMajor;
+    renderPlanBody(collegeName, msel.value);
+    msel.onchange = () => renderPlanBody(collegeName, msel.value);
   }
-  function renderPlanBody(collegeId, majorId, grade) {
-    const col = window.PROGRAMS.colleges.find(c => c.id === collegeId);
-    const mj = col.majors.find(m => m.id === majorId);
-    grade = grade || (mj.grades || [mj.grade])[0];
-    const gi = (mj.grade_info || {})[grade] || { provenance: mj.provenance, src: mj.src };
-    const isZY = mj.id === 'zy-jg';
-    const groups = isZY
-      ? { '在修课程（学习通建库）': window.COURSES.filter(c => c.category !== '通用参考').map(c => c.name) }
-      : ((mj.groups_by_grade || {})[grade] || mj.groups || {});
-    const total = Object.values(groups).reduce((a, arr) => a + arr.length, 0);
-    let libCount = 0;
-    Object.values(groups).forEach(arr => arr.forEach(nm => { if (findCourse(nm)) libCount++; }));
-    const provText = { pdf: '官方培养方案 PDF', web: '官网公开页面', 'pdf+curated': '官方 PDF + 整理', curated: '公开资料整理', carried: '相近届次方案（该年级官方版暂未收录）' }[gi.provenance] || gi.provenance;
+  function renderPlanBody(collegeName, majorName) {
+    const col = p2college(collegeName); if (!col) return;
+    const mj = col.majors.find(m => m.name === majorName) || col.majors[0];
+    if (!mj) return;
+    const uniq = {};
+    mj.courses.forEach(c => { const k = normName(c.name); if (!uniq[k]) uniq[k] = c; });
+    const totalU = Object.keys(uniq).length;
+    let libU = 0; Object.values(uniq).forEach(c => { if (findCourse(c.name)) libU++; });
+    $('#planSrc').innerHTML = `数据来源：<b>${esc(P2.source || '杭电本科教学计划总表')}</b> · ${esc(P2.grade)}级`;
 
-    $('#planSrc').innerHTML = `数据来源：<b>${esc(provText)}</b> · ${esc(gi.src)}`;
+    // 按学年学期分组
+    const secs = {};
+    mj.courses.forEach(c => { const t = termSection(c); (secs[t.key] = secs[t.key] || { label: t.label, ln: t.ln, tn: t.tn, rows: [] }).rows.push(c); });
+    const secList = Object.values(secs).sort((a, b) => a.ln - b.ln || a.tn - b.tn);
+
     const body = $('#planBody');
     let html = `<div class="plan-layout">
       <aside class="plan-side">
         <h3 class="pj-name">${esc(mj.name)}</h3>
-        <div class="pj-grade">${esc(col.name)} · ${esc(grade)}</div>
+        <div class="pj-grade">${esc(col.name)} · ${esc(P2.grade)}级</div>
         <div class="ch-meta" style="margin-bottom:12px">
-          <span>共 ${total} 门课</span><span>已建库 ${libCount} 门</span>
+          <span>共 ${totalU} 门课</span><span>已建库 ${libU} 门</span><span>${secList.length} 个学期</span>
         </div>
-        <div class="hint" style="margin:0 0 12px">${esc(col.note || '')}</div>
-        ${(mj.core || []).length ? `<div class="sec-label">专业核心课程</div>
-        <div class="kp-list">${(mj.core || []).map(n => `<span class="kp">${esc(n)}</span>`).join('')}</div>` : ''}
-        <div class="sec-label">数据可信度</div>
-        <p class="hint" style="margin:0">${gi.provenance === 'curated'
-          ? '该专业仅整理核心课程，非完整培养计划，请以教务处发布为准。'
-          : gi.provenance === 'carried'
-          ? esc(gi.src)
-          : '课程清单来自学院官网公开的培养方案，按课程类别分组。'}</p>
+        <div class="sec-label">课程类别分布</div>
+        <div class="kp-list">${(() => { const m = {}; mj.courses.forEach(c => m[c.category] = (m[c.category] || 0) + 1);
+          return Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="kp">${esc(k)} ${v}</span>`).join(''); })()}</div>
+        <div class="sec-label">数据说明</div>
+        <p class="hint" style="margin:0">课程清单、学分、学时、开课部门、课程性质均来自 ${esc(P2.grade)} 级本科教学计划总表（学院官网公开）。已建库课程可进入完整学习·练习，未建库课程点开可查看其真实目录信息。</p>
       </aside>
       <div class="plan-main">`;
 
-    Object.entries(groups).forEach(([g, arr]) => {
-      html += `<div class="group-card"><h3 class="group-title">${esc(g)} <span class="n">${arr.length} 门</span></h3>`;
-      arr.forEach(nm => {
-        const hit = findCourse(nm);
-        const core = (mj.core || []).some(c => normName(c) === normName(nm));
-        html += `<div class="course-row ${core ? 'is-core' : ''}">
-          <span class="nm">${esc(nm)}</span>
+    secList.forEach(sec => {
+      html += `<div class="group-card"><h3 class="group-title">${esc(sec.label)} <span class="n">${sec.rows.length} 门</span></h3>`;
+      sec.rows.forEach(cs => {
+        const hit = findCourse(cs.name);
+        const catRow = catByName(cs.name);
+        const isReq = (cs.nature || '').includes('必修') || (cs.nature || '').includes('核心');
+        html += `<div class="course-row ${isReq ? 'is-core' : ''}">
+          <span class="nm">${esc(cs.name)}</span>
+          <span class="rp" style="color:var(--ink-3);font-size:11.5px">${esc(cs.credit ? cs.credit + '学分' : '')}${cs.credit && cs.category ? ' · ' : ''}${esc(cs.category || '')}${(cs.assess) ? ' · ' + esc(cs.assess) : ''}</span>
           <span class="ops">${hit
             ? `<a class="chip" data-go-course="${esc(hit.id)}">学习 · 练习</a>
-               <button class="chip" data-add-my="${esc(nm)}">+ 我的课程</button>`
-            : `<span class="chip plain">未建库</span>
-               <button class="chip" data-add-my="${esc(nm)}">+ 我的课程</button>`}</span>
+               <button class="chip" data-add-my="${esc(cs.name)}">+ 我的课程</button>`
+            : (catRow ? `<a class="chip" data-go-cat="${esc(catRow.uid)}">查看目录</a>` : `<span class="chip plain">未建库</span>`)
+              + `<button class="chip" data-add-my="${esc(cs.name)}">+ 我的课程</button>`}</span>
         </div>`;
       });
       html += `</div>`;
     });
     html += `</div></div>`;
     body.innerHTML = html;
-    $$('#planBody [data-go-course]').forEach(a => a.addEventListener('click', (e) => {
-      e.preventDefault(); openCourse(a.dataset.goCourse);
-    }));
+    $$('#planBody [data-go-course]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); openCourse(a.dataset.goCourse); }));
+    $$('#planBody [data-go-cat]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); openCatalogEntry(a.dataset.goCat); }));
     $$('#planBody [data-add-my]').forEach(b => b.addEventListener('click', () => {
       addMine(b.dataset.addMy); b.textContent = '已加入'; setTimeout(() => { b.textContent = '+ 我的课程'; }, 1200);
     }));
   }
 
   $('#saveMyClass').addEventListener('click', () => {
-    const collegeId = $('#collegeSel').value, majorId = $('#majorSel').value, grade = $('#gradeSel').value;
-    state.myclass = { collegeId, majorId, grade };
+    const college = $('#collegeSel').value, major = $('#majorSel').value;
+    state.myclass = { college, major };
     store.set(K.cls, state.myclass);
     renderMyClassCard(); renderBadge();
-    $('#saveMyClass').textContent = '已保存';
-    setTimeout(() => { $('#saveMyClass').textContent = '设为我的班级'; }, 1500);
+    const btn = $('#saveMyClass'); btn.textContent = '已保存';
+    setTimeout(() => { btn.textContent = '设为我的专业'; }, 1500);
   });
+
 
   /* ================= 我的课程（导入） ================= */
   function addMine(rawName) {
@@ -452,12 +570,30 @@
           ${s.hint ? `<p class="hint">${esc(s.hint)}</p>` : ''}
         </div>`;
       });
-      (c.modules || []).forEach(m => {
-        html += `<details class="mod"><summary>${esc(m.index || '')} ${esc(m.title || '')}</summary>
-          <div class="body">${(m.sections || []).map(sec =>
-            `<p><b>${esc(sec.h4 || '')}</b></p><div>${sec.body || ''}</div>`).join('')}</div></details>`;
+      const mods = c.modules || [];
+      if (mods.length) {
+        html += `<div class="mod-toolbar">
+          <span class="mod-tip">展开任意一章看「书面讲解 + 通俗理解」</span>
+          <span class="mod-act"><button type="button" data-modall="open">展开全部</button><button type="button" data-modall="close">收起全部</button></span>
+        </div>`;
+      }
+      mods.forEach((m, mi) => {
+        const secs = (m.sections || []).map(sec =>
+          `<p><b>${esc(sec.h4 || '')}</b></p><div>${sec.body || ''}</div>`).join('');
+        const terms = (m.terms || []).map(t => `<div class="term">
+            <div class="term-name">${esc(t.name || '')}</div>
+            ${t.plain ? `<div class="term-plain"><span class="lbl">通俗说</span>${t.plain}</div>` : ''}
+            ${t.example ? `<div class="term-ex"><span class="lbl">举例</span>${t.example}</div>` : ''}
+          </div>`).join('');
+        html += `<details class="mod"${mi === 0 ? ' open' : ''}><summary>${esc(m.index || '')} ${esc(m.title || '')}</summary>
+          <div class="body">${m.sub ? `<p class="mod-sub">${esc(m.sub)}</p>` : ''}${secs}
+          ${terms ? `<div class="mod-terms"><div class="mod-terms-h">通俗理解</div>${terms}</div>` : ''}</div></details>`;
       });
       body.innerHTML = html || '<div class="empty-tip">该课程暂无章节讲解</div>';
+      $$('#tabBody [data-modall]').forEach(b => b.addEventListener('click', () => {
+        const open = b.dataset.modall === 'open';
+        $$('#tabBody details.mod').forEach(d => { d.open = open; });
+      }));
     } else if (tab === 'review') {
       let html = '';
       chs.forEach(s => {
@@ -470,7 +606,7 @@
       if ((c.formulas || []).length) {
         html += `<div class="section-card"><h3>公式卡片</h3><div class="formula-grid">` +
           c.formulas.map(f => `<div class="formula-card"><div class="t">${esc(f.title)}</div>
-            <div class="m">$$${katexMath(f.math)}$$</div><div class="n">${esc(f.note || '')}</div></div>`).join('') +
+            <div class="m">${formulaMathHTML(f.math)}</div><div class="n">${esc(f.note || '')}</div></div>`).join('') +
           `</div></div>`;
       }
       body.innerHTML = html || '<div class="empty-tip">暂无复习内容</div>';
@@ -507,6 +643,24 @@
 
   /* ================= 练习答题 ================= */
   const DIFF = { easy: '基础', mid: '进阶', hard: '挑战' };
+  /* 知识点归一化 key：优先 tags[0]，否则去掉「📎 知识点：」前缀的 kp */
+  function normKp(q) {
+    if (q && q.tags && q.tags[0]) return String(q.tags[0]).trim();
+    if (q && q.kp) return String(q.kp).replace(/^[^一-龥A-Za-z0-9]+/, '').replace(/^知识点[:：]?\s*/, '').trim();
+    return '';
+  }
+  /* 全站知识点索引：key -> [{__cid, chTitle, q}]，懒加载 */
+  let __KP_INDEX = null;
+  function kpIndex() {
+    if (__KP_INDEX) return __KP_INDEX;
+    const map = {};
+    (window.COURSES || []).forEach(c => (c.chapters || []).forEach(ch => (ch.questions || []).forEach(q => {
+      const k = normKp(q);
+      if (!k) return;
+      (map[k] = map[k] || []).push({ __cid: c.id, chTitle: `${ch.chapter || ''} ${ch.title || ''}`.trim(), q });
+    })));
+    return (__KP_INDEX = map);
+  }
   function optionLetterFromAnswer(ansHtml) {
     const txt = String(ansHtml || '').replace(/<[^>]+>/g, '');
     const m = txt.match(/[A-Z]/);
@@ -518,6 +672,28 @@
     chapters.forEach(s => (s.questions || []).forEach(q => all.push({ ...q, chTitle: `${s.chapter || ''} ${s.title || ''}`.trim(), __cid: q.__cid || s.__cid || course.id })));
     if (!all.length) { alert('该章节暂无题目'); return; }
     let idx = 0, right = 0, wrongList = [];
+    /* 同类题再练：答错后把同知识点的其它题插到当前题后面，最多 2 道，去重，不对同类题再派生 */
+    function stemKey(x) { return String((x && x.stem) || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').slice(0, 48); }
+    function addVariants(q) {
+      if (q._variant) return 0;
+      const k = normKp(q); if (!k) return 0;
+      const pool = kpIndex()[k] || [];
+      const sameCourse = pool.filter(o => o.__cid === course.id);
+      const cand = (sameCourse.length ? sameCourse : pool).map(o => o.q);
+      const seen = new Set(all.map(x => stemKey(x)));
+      const extra = [];
+      for (const x of cand) {
+        const key = stemKey(x);
+        if (!key || seen.has(key)) continue;
+        seen.add(key); extra.push(x);
+        if (extra.length >= 2) break;
+      }
+      if (!extra.length) return 0;
+      extra.forEach((x, i) => {
+        all.splice(idx + 1 + i, 0, { ...x, chTitle: `同类巩固 · ${k}`, __cid: x.__cid || course.id, _variant: true });
+      });
+      return extra.length;
+    }
     v.innerHTML = `<div class="crumb"><a id="qzBack">返回课程</a> · ${esc(label)}</div>
       <div class="quiz-wrap">
         <div class="quiz-top"><span id="qzProg"></span><span id="qzScore"></span></div>
@@ -533,7 +709,7 @@
       const body = $('#qzBody');
       const isChoice = (q.type === '选择题' || q.type === '判断题') && (q.options || []).length >= 2;
       let html = `<div class="q-card">
-        <div><span class="q-type">${esc(q.type || '题目')}</span><span class="q-diff">${DIFF[q.difficulty] || ''} ${esc(q.number || '')}</span></div>
+        <div><span class="q-type">${esc(q.type || '题目')}</span><span class="q-diff">${DIFF[q.difficulty] || ''} ${esc(q.number || '')}</span>${q._variant ? '<span class="q-diff" style="color:var(--brand,#2563EB);font-weight:700"> 🎯 同类巩固</span>' : ''}</div>
         <div class="q-stem-wrap">${q.stem || ''}</div>`;
       if (isChoice) {
         html += `<div class="q-opts">${q.options.map((o, i) =>
@@ -575,20 +751,22 @@
             if (bl === ansLetter) b.classList.add('right');
           });
           if (!okPick) btn.classList.add('wrong');
-          if (okPick) { right++; $('.q-card').classList.add('q-right-flash'); }
-          else markWrong();
+          let varN = 0;
+          if (okPick) { right++; if (window.Game) Game.addXp(q._variant ? 6 : 10); $('.q-card').classList.add('q-right-flash'); }
+          else { markWrong(); varN = addVariants(q); }
           $('#qzScore').textContent = `答对 ${right} · 答错 ${wrongList.length}`;
           $('#qzFeedback').innerHTML = `<div class="q-explain">
             <div class="ans ${okPick ? '' : 'bad'}">${okPick ? `回答正确` : `答错了，正确答案：${esc(ansLetter || '见解析')}`}</div>
             <div class="cheer">${okPick ? cheerOf(CHEER_RIGHT) : cheerOf(CHEER_WRONG)}</div>
             <div>${q.explain || ''}</div>
-            <div>${q.kp ? `<span class="kp">${esc(String(q.kp).replace(/^[^\u4e00-\u9fa5A-Za-z]+/, ''))}</span>` : ''}</div></div>`;
+            <div>${q.kp ? `<span class="kp">${esc(String(q.kp).replace(/^[^\u4e00-\u9fa5A-Za-z]+/, ''))}</span>` : ''}</div>
+            ${(!okPick && varN) ? `<div class="cheer" style="color:var(--brand,#2563EB);font-weight:700">🎯 已加练 ${varN} 道同类题，趁热把这个知识点练透</div>` : ''}</div>`;
           $('#qzNext').disabled = false;
           refreshMath();
         }));
       } else {
         $('#qzSelfRight').addEventListener('click', () => {
-          if (answered) return; answered = true; right++;
+          if (answered) return; answered = true; right++; if (window.Game) Game.addXp(8);
           $('#qzScore').textContent = `答对 ${right} · 答错 ${wrongList.length}`;
           $('#qzFeedback').innerHTML = `<div class="q-explain"><div class="ans">答对了</div><div class="cheer">${cheerOf(CHEER_RIGHT)}</div>
             <div>${q.explain || ''}</div></div>`;
@@ -596,10 +774,11 @@
           refreshMath();
         });
         $('#qzSelfWrong').addEventListener('click', () => {
-          if (answered) return; answered = true; markWrong();
+          if (answered) return; answered = true; markWrong(); const varN = addVariants(q);
           $('#qzScore').textContent = `答对 ${right} · 答错 ${wrongList.length}`;
           $('#qzFeedback').innerHTML = `<div class="q-explain"><div class="ans">已收录进错题集</div><div class="cheer">${cheerOf(CHEER_WRONG)}</div>
-            <div>${q.explain || ''}</div></div>`;
+            <div>${q.explain || ''}</div>
+            ${varN ? `<div class="cheer" style="color:var(--brand,#2563EB);font-weight:700">🎯 已加练 ${varN} 道同类题，趁热把这个知识点练透</div>` : ''}</div>`;
           $('#qzNext').disabled = false;
           refreshMath();
         });
@@ -779,15 +958,17 @@
   /* ================= 启动 ================= */
   const totalCh = window.COURSES.reduce((a, c) => a + (c.chapters || []).length, 0);
   const totalQ = window.COURSES.reduce((a, c) => a + (c.chapters || []).reduce((x, s2) => x + (s2.questions || []).length, 0), 0);
-  const totalMj = window.PROGRAMS.colleges.reduce((a, c) => a + c.majors.length, 0);
-  $('#heroSub').textContent = '给全校学生的复习站：选学院、专业、年级看培养计划，按章节学知识点，按题目练手，错题自动收进错题集。';
+  const totalMj = (window.PROGRAMS2 && window.PROGRAMS2.stats ? window.PROGRAMS2.stats.majorCount : (window.PROGRAMS ? window.PROGRAMS.colleges.reduce((a, c) => a + c.majors.length, 0) : 0));
+  const totalCol = (window.PROGRAMS2 && window.PROGRAMS2.stats) ? window.PROGRAMS2.stats.collegeCount : 0;
+  const totalCat = (window.CATALOG || []).length;
+  $('#heroSub').textContent = '杭电全校通用学习站：收录全部培养计划课程，选学院、专业、年级看计划，按章节学知识点，按题目练手，答错自动进错题集并推同类题再练。';
   $('#heroQuote').textContent = dailyQuote();
   $('#heroStats').innerHTML = `
-    <div class="stat"><b>${window.COURSES.length}</b><span>门建库课程</span></div>
-    <div class="stat"><b>${totalCh}</b><span>个章节</span></div>
+    <div class="stat"><b>${totalCat}</b><span>门全校课程</span></div>
+    <div class="stat"><b>${window.COURSES.length}</b><span>门已建库</span></div>
     <div class="stat"><b>${totalQ}</b><span>道练习题</span></div>
     <div class="stat"><b>${totalMj}</b><span>个专业方案</span></div>`;
-  applyTheme(); renderPills(); renderGrid(); renderMyClassCard(); renderPlanSelectors(); updateWrongCount();
+  applyTheme(); renderPills(); renderCollegeFilter(); renderScopeToggle(); renderGrid(); renderMyClassCard(); renderPlanSelectors(); updateWrongCount();
   const h = location.hash;
   if (h === '#plan') show('viewPlan', false);
   else if (h === '#my') show('viewMy', false);

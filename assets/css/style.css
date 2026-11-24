@@ -578,3 +578,162 @@ html[data-theme="dark"] .icon-btn .ico-sun{display:block}
 }
 @keyframes bootslide{0%{margin-left:-40%}100%{margin-left:100%}}
 .boot-tip{font-size:11.5px;color:var(--ink-3);line-height:1.8}
+
+/* =====================================================
+   🎈 乐园 v3 皮肤覆盖层（追加，不动上面规则）
+   更鲜亮的渐变 · 更大圆角 · 多彩卡片 · 立体按钮 · 游戏条
+   ===================================================== */
+:root{
+  --a1:#5B6CFF; --a2:#22C55E; --a3:#22D3EE; --a4:#FF5C8A; --a5:#FF9F1C;
+  --brand:var(--a1); --brand-deep:#3f4fd6; --brand-soft:#eef1ff;
+  --grad:linear-gradient(135deg,var(--a1),var(--a3));
+  --grad2:linear-gradient(135deg,var(--a1),var(--a4));
+  --r-card:22px; --r-btn:14px; --r-icon:16px;
+  --shadow:0 10px 26px -12px rgba(80,90,200,.20);
+  --shadow-hi:0 20px 44px -16px rgba(80,90,200,.34);
+}
+html[data-theme="dark"]{--brand:var(--a1);--brand-deep:#7C8BFF;--brand-soft:#1b2140;--shadow:0 12px 30px -12px rgba(0,0,0,.5);--shadow-hi:0 22px 48px -16px rgba(0,0,0,.62)}
+
+body{background:
+  radial-gradient(110% 70% at 100% 0,#eaf1ff 0,transparent 55%),
+  radial-gradient(90% 60% at 0 0,#e9fbf2 0,transparent 50%),
+  var(--bg);
+  background-attachment:fixed;}
+html[data-theme="dark"] body{background:
+  radial-gradient(110% 70% at 100% 0,#1a2140 0,transparent 55%),
+  radial-gradient(90% 60% at 0 0,#14233a 0,transparent 50%),var(--bg)}
+::selection{background:rgba(91,108,255,.26)}
+
+/* 顶栏 & 导航 */
+.brand-logo{background:var(--grad2);box-shadow:0 6px 16px rgba(124,92,255,.4)}
+.nav-link.active,.pill.active,.tab.active{background:var(--grad2);box-shadow:0 6px 16px rgba(124,92,255,.35)}
+.mainnav{padding:2px 26px 6px}
+.mainnav,.tabs{gap:8px}
+.my-badge{background:var(--brand-soft);color:var(--brand-deep);font-weight:700}
+
+/* Hero 变彩色卡 */
+.hero{background:linear-gradient(135deg,#eef1ff,#e6fbf3 60%,#eafaff);border:1px solid var(--line);
+  border-radius:28px;padding:34px 30px;margin-top:22px;position:relative;overflow:hidden;box-shadow:var(--shadow)}
+.hero::after{content:"🦉";position:absolute;right:26px;top:50%;transform:translateY(-50%);font-size:74px;opacity:.92;filter:drop-shadow(0 10px 14px rgba(0,0,0,.12));animation:bob3 3s ease-in-out infinite}
+@keyframes bob3{0%,100%{transform:translateY(-50%)}50%{transform:translateY(calc(-50% - 8px))}}
+.hero-title{margin-top:12px}
+.hero-title .hl{background:var(--grad2);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-kicker{background:#fff;color:var(--brand);border:1px solid var(--line)}
+.hero-aside{width:320px}
+.stat{border-radius:18px;border:1px solid var(--line);box-shadow:var(--shadow)}
+.stat b{background:var(--grad2);-webkit-background-clip:text;background-clip:text;color:transparent}
+@media (max-width:860px){.hero{padding:26px 20px}.hero::after{display:none}}
+
+/* 课程卡更活 */
+.course-card{border:1px solid var(--line);box-shadow:var(--shadow);border-radius:22px}
+.course-card:hover{transform:translateY(-5px);border-color:transparent;box-shadow:var(--shadow-hi)}
+.cc-emoji{border-radius:16px;background:var(--grad2)}
+.course-card:nth-child(6n+1) .cc-emoji{background:linear-gradient(135deg,#5B6CFF,#22D3EE)}
+.course-card:nth-child(6n+2) .cc-emoji{background:linear-gradient(135deg,#22C55E,#0EA5A4)}
+.course-card:nth-child(6n+3) .cc-emoji{background:linear-gradient(135deg,#FFB020,#FF7A45)}
+.course-card:nth-child(6n+4) .cc-emoji{background:linear-gradient(135deg,#A78BFA,#5B6CFF)}
+.course-card:nth-child(6n+5) .cc-emoji{background:linear-gradient(135deg,#FF6BD6,#FF5C8A)}
+.course-card:nth-child(6n+6) .cc-emoji{background:linear-gradient(135deg,#2DD4BF,#22C55E)}
+
+/* 立体主按钮（多邻国手感） */
+.btn-primary{background:var(--grad2);border-radius:14px;padding:12px 26px;
+  box-shadow:0 5px 0 var(--brand-deep);transition:transform .08s,box-shadow .08s}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 0 var(--brand-deep)}
+.btn-primary:active{transform:translateY(4px);box-shadow:0 1px 0 var(--brand-deep)}
+.ch-emoji{background:var(--grad2);box-shadow:0 8px 18px rgba(124,92,255,.34)}
+
+/* 练习 */
+.qbar{background:var(--line)}
+.qbar i{background:var(--grad2)}
+.q-opt{border-radius:15px}
+.q-opt:hover{background:var(--brand-soft);border-color:var(--a1)}
+.q-opt::before{color:#fff;background:var(--grad)}
+.q-opt.right{border-color:var(--ok);background:var(--ok-soft)}
+.q-opt.right::before{background:var(--ok)}
+.q-opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.q-opt.wrong::before{background:var(--bad)}
+.section-card,.group-card,.formula-card,.wb-course,.advice-card{border:1px solid var(--line);box-shadow:var(--shadow);border-radius:20px}
+.myclass-card{background:linear-gradient(120deg,#eef1ff,#e6fbf3);border:1px solid var(--line)}
+
+/* 游戏条 */
+.gamebar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--line);border-radius:18px;
+  padding:10px 14px;margin:14px 0 4px;box-shadow:var(--shadow)}
+.gamebar .lv{display:flex;align-items:center;gap:10px}
+.ring2{position:relative;width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:conic-gradient(var(--a1) calc(var(--p,0)*1%),var(--line) 0);color:var(--ink);font-weight:900;font-size:15px}
+.ring2::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--card)}
+.ring2 span{position:relative;z-index:1}
+.gamebar .name{font-weight:800;font-size:13px;line-height:1.2}
+.xpbar{width:150px;height:9px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:3px}
+.xpbar i{display:block;height:100%;border-radius:99px;background:var(--grad2);transition:width .5s}
+.streakchip{display:inline-flex;align-items:center;gap:5px;font-weight:800;font-size:13px;
+  background:linear-gradient(135deg,#fff2df,#ffe7ef);color:#d97706;border:1px solid #ffe0b2;border-radius:99px;padding:6px 12px}
+html[data-theme="dark"] .streakchip{background:#2a2416;color:#fbbf24;border-color:#3a2f14}
+.gamebar .spacer{margin-left:auto}
+.checkin-btn{border:none;cursor:pointer;font-family:inherit;font-weight:900;font-size:13px;color:#fff;
+  background:var(--a2);padding:10px 18px;border-radius:14px;box-shadow:0 4px 0 #16a34a;transition:transform .08s,box-shadow .08s}
+.checkin-btn:active{transform:translateY(3px);box-shadow:0 1px 0 #16a34a}
+.checkin-btn.done{background:var(--soft,#eef1ff);color:var(--ink-3);box-shadow:0 4px 0 var(--line);background:var(--card-soft)}
+@media (max-width:520px){.xpbar{width:110px}.gamebar{gap:9px;padding:10px}}
+
+/* 首页乐园仪表盘 */
+.play-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:6px 0 18px}
+.play-tile{border-radius:20px;padding:18px;color:#fff;min-height:96px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;transition:transform .16s;box-shadow:var(--shadow)}
+.play-tile:hover{transform:translateY(-4px)}
+.play-tile .em{font-size:26px}
+.play-tile .t{font-weight:900;font-size:15px}
+.play-tile .s{font-size:11.5px;opacity:.92}
+.play-tile.p1{background:linear-gradient(140deg,#5B6CFF,#22D3EE)}
+.play-tile.p2{background:linear-gradient(140deg,#A78BFA,#5B6CFF)}
+.play-tile.p3{background:linear-gradient(140deg,#22C55E,#0EA5A4)}
+.play-tile.p4{background:linear-gradient(140deg,#FFB020,#FF5C8A)}
+@media (max-width:860px){.play-grid{grid-template-columns:1fr 1fr}}
+
+@media (prefers-reduced-motion:reduce){.hero::after{animation:none}}
+
+/* ============ 全校课程总目录 · 工具栏 & 目录卡 ============ */
+.lib-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 0 12px}
+.lib-toolbar .select-sm{min-width:180px;height:38px;font-size:12.5px;border-radius:11px}
+.scope-toggle{display:inline-flex;background:var(--card);border:1.5px solid var(--line-2);border-radius:11px;padding:3px;gap:3px}
+.scope-btn{border:none;background:transparent;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:700;color:var(--ink-2);cursor:pointer;transition:all .16s}
+.scope-btn.active{color:#fff;background:linear-gradient(135deg,#60A5FA,#2563EB);box-shadow:0 3px 9px rgba(37,99,235,.25)}
+.lib-count{margin-left:auto;font-size:12px;color:var(--ink-3);font-weight:600}
+.cc-emoji-soft{background:linear-gradient(135deg,#CBD5E1,#94A3B8) !important}
+.course-card.is-todo{background:var(--card-soft);border-style:dashed}
+.course-card.is-todo:hover{border-color:var(--ink-3);transform:translateY(-2px)}
+.course-card.is-built{border-color:rgba(16,185,129,.35)}
+
+/* ================= 通俗理解（书面 body + 通俗 terms 双层） ================= */
+.mod-sub{font-size:13px;color:var(--ink-3);line-height:1.8;margin:2px 0 12px}
+.mod-terms{margin-top:16px;padding-top:4px}
+.mod-terms-h{font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--brand-deep);
+  display:inline-block;background:var(--brand-soft);border-radius:99px;padding:3px 12px;margin-bottom:10px}
+.term{background:var(--card-soft);border:1px solid var(--line);border-left:3px solid var(--brand);
+  border-radius:12px;padding:11px 14px;margin-bottom:10px}
+.term-name{font-size:13.5px;font-weight:700;color:var(--ink);margin-bottom:6px}
+.term-plain,.term-ex{font-size:13px;line-height:1.85;color:var(--ink-2);margin-top:5px}
+.term .lbl{display:inline-block;font-size:10.5px;font-weight:700;color:#fff;background:var(--brand);
+  border-radius:6px;padding:1px 7px;margin-right:8px;vertical-align:1px}
+.term-ex .lbl{background:var(--a2,#14b8a6)}
+
+/* 课程学习页：章节工具栏 + 模块卡（不花哨、聚焦阅读） */
+.mod-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin:2px 0 14px;padding:10px 14px;background:var(--card-soft);
+  border:1px solid var(--line);border-radius:14px}
+.mod-tip{font-size:12.5px;color:var(--ink-3)}
+.mod-act{display:flex;gap:8px}
+.mod-act button{font-size:12px;color:var(--brand-deep);background:var(--card);
+  border:1px solid var(--line-2);border-radius:99px;padding:5px 14px;cursor:pointer;transition:.12s}
+.mod-act button:hover{border-color:var(--brand);background:var(--brand-soft)}
+details.mod{background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:2px 18px;margin-bottom:12px;box-shadow:var(--shadow);transition:box-shadow .15s}
+details.mod[open]{box-shadow:0 6px 22px rgba(20,30,60,.07)}
+details.mod>summary{list-style:none;cursor:pointer;font-size:15px;font-weight:700;color:var(--ink);
+  padding:14px 0;display:flex;align-items:center;gap:8px}
+details.mod>summary::-webkit-details-marker{display:none}
+details.mod>summary::before{content:'\25B8';color:var(--brand);font-size:12px;transition:transform .15s}
+details.mod[open]>summary::before{transform:rotate(90deg)}
+details.mod .body{padding:2px 0 16px;font-size:14px;line-height:1.9;color:var(--ink-2)}
+details.mod .body>p{margin:10px 0 4px}
+details.mod .body b{color:var(--ink)}
